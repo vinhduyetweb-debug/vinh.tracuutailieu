@@ -1,4 +1,10 @@
-# PCCC Legal Search PWA
+# PCCC Legal Search PWA V2 Fixed
+
+## Sửa lỗi upload
+- Thay label upload bằng button gọi trực tiếp `fileInput.click()`.
+- Thêm input file thật nằm ngoài vùng label để tránh lỗi trình duyệt mobile.
+- Thêm thông báo trạng thái thư viện PDF/DOCX.
+- Bắt lỗi rõ khi pdf.js/mammoth chưa tải.
 
 ## Tính năng
 - Upload PDF, DOCX, TXT.
@@ -7,17 +13,10 @@
 - Tìm kiếm từ khóa, highlight kết quả.
 - Lọc PDF / Word / TXT.
 - Copy đoạn trích, ghim kết quả, export kết quả ra TXT.
-- Giao diện dark legal dashboard.
-- Mobile/iPad friendly.
-- Deploy Vercel dạng HTML tĩnh.
 
-## Lưu ý quan trọng
-- Lần đầu cần internet để tải thư viện CDN: pdf.js và mammoth.js.
-- Sau khi tải được thư viện, tài liệu đã upload được lưu trong trình duyệt.
-- Kết quả chỉ hỗ trợ tra cứu nội bộ, cần đối chiếu văn bản gốc trước khi áp dụng.
+## Lưu ý
+Lần đầu cần internet để tải thư viện CDN:
+- pdf.js cho PDF
+- mammoth.js cho DOCX
 
-## Deploy Vercel
-Kéo thả thư mục lên Vercel hoặc chạy:
-```bash
-vercel --prod
-```
+TXT hoạt động ngay cả khi thiếu 2 thư viện trên.
