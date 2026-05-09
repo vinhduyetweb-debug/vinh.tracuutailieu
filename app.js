@@ -1,15 +1,12 @@
-const DB="pccc_legal_search_v2",STORE="docs";
-let db,docs=[],chunks=[],filter="all",lastResults=[],pinned=new Set(JSON.parse(localStorage.getItem("pccc_pinned_v2")||"[]"));
+const DB="pccc_legal_search_v3",STORE="docs";
+let db,docs=[],chunks=[],filter="all",lastResults=[],pinned=new Set(JSON.parse(localStorage.getItem("pccc_pinned_v3")||"[]"));
 const $=id=>document.getElementById(id);
 const fileInput=$("fileInput"),dropZone=$("dropZone"),docList=$("docList"),drawerDocs=$("drawerDocs"),resultList=$("resultList"),summaryBox=$("summaryBox"),queryInput=$("queryInput");
 
 window.addEventListener("error",e=>toast("Lỗi app: "+(e.message||"không rõ")));
 window.addEventListener("load",()=>{setTimeout(()=>{if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";} updateLibStatus();},600)});
 
-function updateLibStatus(){
-  const pdf=!!window.pdfjsLib, docx=!!window.mammoth;
-  $("libStatus").textContent=`Trạng thái thư viện: PDF ${pdf?"OK":"chưa tải"} • DOCX ${docx?"OK":"chưa tải"}. TXT luôn dùng được.`;
-}
+function updateLibStatus(){const pdf=!!window.pdfjsLib,docx=!!window.mammoth;$("libStatus").textContent=`Trạng thái thư viện: PDF ${pdf?"OK":"chưa tải"} • DOCX ${docx?"OK":"chưa tải"} • TXT OK.`}
 function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains(STORE))d.createObjectStore(STORE,{keyPath:"id"})};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 function os(m="readonly"){return db.transaction(STORE,m).objectStore(STORE)}
 function allDocs(){return new Promise((res,rej)=>{const r=os().getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error)})}
@@ -23,106 +20,40 @@ function icon(t){return t==="pdf"?"📕":t==="docx"?"📘":t==="txt"?"📄":"�
 function esc(s){return String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
 function escapeReg(s){return String(s).replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}
 
-async function parsePdf(file){
-  if(!window.pdfjsLib) throw new Error("pdf.js chưa tải. Hãy bật internet rồi reload trang.");
-  const data=await file.arrayBuffer();
-  const pdf=await pdfjsLib.getDocument({data}).promise;
-  let pages=[];
-  for(let p=1;p<=pdf.numPages;p++){
-    const page=await pdf.getPage(p);
-    const content=await page.getTextContent();
-    pages.push(`Trang ${p}\n`+content.items.map(i=>i.str).join(" "));
-  }
-  return pages.join("\n\n");
-}
-async function parseDocx(file){
-  if(!window.mammoth) throw new Error("mammoth.js chưa tải. Hãy bật internet rồi reload trang.");
-  const arrayBuffer=await file.arrayBuffer();
-  const result=await mammoth.extractRawText({arrayBuffer});
-  return result.value||"";
-}
-async function parseTxt(file){return await file.text();}
+async function parsePdf(file){if(!window.pdfjsLib)throw new Error("pdf.js chưa tải. Hãy bật internet rồi reload trang.");const data=await file.arrayBuffer();const pdf=await pdfjsLib.getDocument({data}).promise;let pages=[];for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p);const content=await page.getTextContent();pages.push(`Trang ${p}\n`+content.items.map(i=>i.str).join(" "))}return pages.join("\n\n")}
+async function parseDocx(file){if(!window.mammoth)throw new Error("mammoth.js chưa tải. Hãy bật internet rồi reload trang.");const arrayBuffer=await file.arrayBuffer();const result=await mammoth.extractRawText({arrayBuffer});return result.value||""}
+async function parseTxt(file){return await file.text()}
 
-function splitChunks(text,docId,fileName,type){
-  const clean=(text||"").replace(/\r/g,"\n").replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n").trim();
-  const paras=clean.split(/\n\s*\n|(?=Điều\s+\d+[\.:])|(?=Khoản\s+\d+[\.:])/gi).map(x=>x.trim()).filter(x=>x.length>20);
-  const out=[];
-  paras.forEach((p,i)=>{if(p.length>1400){for(let j=0;j<p.length;j+=1000)out.push({docId,fileName,type,idx:i,text:p.slice(j,j+1200)})}else out.push({docId,fileName,type,idx:i,text:p})});
-  return out;
-}
+function splitChunks(text,docId,fileName,type){const clean=(text||"").replace(/\r/g,"\n").replace(/[ \t]+/g," ").replace(/\n{3,}/g,"\n\n").trim();const paras=clean.split(/\n\s*\n|(?=Điều\s+\d+[\.:])|(?=Khoản\s+\d+[\.:])/gi).map(x=>x.trim()).filter(x=>x.length>20);const out=[];paras.forEach((p,i)=>{if(p.length>1400){for(let j=0;j<p.length;j+=1000)out.push({docId,fileName,type,idx:i,text:p.slice(j,j+1200)})}else out.push({docId,fileName,type,idx:i,text:p})});return out}
 
-async function addFiles(files){
-  updateLibStatus();
-  const arr=Array.from(files||[]).filter(f=>/\.(pdf|docx|txt)$/i.test(f.name));
-  if(!arr.length){toast("Chưa chọn file PDF/DOCX/TXT hợp lệ.");return}
-  for(const file of arr){
-    try{
-      toast("Đang đọc: "+file.name);
-      const type=typeOf(file.name);
-      let text= type==="pdf" ? await parsePdf(file) : type==="docx" ? await parseDocx(file) : await parseTxt(file);
-      if(!text.trim()) throw new Error("không trích xuất được nội dung chữ");
-      await putDoc({id:crypto.randomUUID(),name:file.name,type,size:file.size,text,createdAt:Date.now()});
-      toast("Đã lưu: "+file.name);
-    }catch(e){toast("Lỗi đọc "+file.name+": "+e.message)}
-  }
-  fileInput.value="";
-  await refresh();
-}
+async function addFiles(files){updateLibStatus();const arr=Array.from(files||[]).filter(f=>/\.(pdf|docx|txt)$/i.test(f.name));if(!arr.length){toast("Chưa chọn file PDF/DOCX/TXT hợp lệ.");return}for(const file of arr){try{toast("Đang đọc: "+file.name);const type=typeOf(file.name);let text=type==="pdf"?await parsePdf(file):type==="docx"?await parseDocx(file):await parseTxt(file);if(!text.trim())throw new Error("không trích xuất được nội dung chữ");await putDoc({id:crypto.randomUUID(),name:file.name,type,size:file.size,text,createdAt:Date.now()});toast("Đã lưu: "+file.name)}catch(e){toast("Lỗi đọc "+file.name+": "+e.message)}}fileInput.value="";await refresh()}
 
 async function refresh(){docs=(await allDocs()).sort((a,b)=>b.createdAt-a.createdAt);chunks=[];docs.forEach(d=>chunks.push(...splitChunks(d.text,d.id,d.name,d.type)));renderDocs();updateStats()}
 function updateStats(){$("docCount").textContent=docs.length;$("chunkCount").textContent=chunks.length;$("storageSize").textContent=fmt(docs.reduce((s,d)=>s+(d.size||0),0))}
-function renderDocs(){
-  const html=docs.length?docs.map(d=>`<div class="docItem" data-id="${d.id}"><h4>${icon(d.type)} ${esc(d.name)}</h4><p>${d.type.toUpperCase()} • ${fmt(d.size)} • ${new Date(d.createdAt).toLocaleDateString("vi-VN")}</p><div class="docActions"><button class="mini docSearch">Tìm trong file</button><button class="mini docCopy">Copy tên</button><button class="mini docRemove">Xóa</button></div></div>`).join(""):"<div class='summaryBox'>Chưa có tài liệu.</div>";
-  docList.innerHTML=html;drawerDocs.innerHTML=html;
-  document.querySelectorAll(".docItem").forEach(el=>{
-    const id=el.dataset.id;
-    el.querySelector(".docSearch").onclick=()=>searchDoc(id);
-    el.querySelector(".docCopy").onclick=()=>{const d=docs.find(x=>x.id===id);if(d)navigator.clipboard.writeText(d.name)};
-    el.querySelector(".docRemove").onclick=()=>removeDoc(id);
-  });
-}
+function renderDocs(){const html=docs.length?docs.map(d=>`<div class="docItem" data-id="${d.id}"><h4>${icon(d.type)} ${esc(d.name)}</h4><p>${d.type.toUpperCase()} • ${fmt(d.size)} • ${new Date(d.createdAt).toLocaleDateString("vi-VN")}</p><div class="docActions"><button class="mini docSearch">Tìm</button><button class="mini docCopy">Copy</button><button class="mini docRemove">Xóa</button></div></div>`).join(""):"<div class='summaryBox'>Chưa có tài liệu.</div>";docList.innerHTML=html;drawerDocs.innerHTML=html;document.querySelectorAll(".docItem").forEach(el=>{const id=el.dataset.id;el.querySelector(".docSearch").onclick=()=>searchDoc(id);el.querySelector(".docCopy").onclick=()=>{const d=docs.find(x=>x.id===id);if(d)navigator.clipboard.writeText(d.name)};el.querySelector(".docRemove").onclick=()=>removeDoc(id)})}
 async function removeDoc(id){if(confirm("Xóa tài liệu này khỏi thư viện?")){await delDoc(id);await refresh();toast("Đã xóa tài liệu.")}}
 function searchDoc(id){const d=docs.find(x=>x.id===id);if(!d)return;filter=d.type;document.querySelectorAll(".chip[data-filter]").forEach(c=>c.classList.toggle("active",c.dataset.filter===d.type));queryInput.value=d.name.replace(/\.(pdf|docx|txt)$/i,"").split(/[-_]/)[0];search()}
 
-function scoreChunk(text,terms){const lower=text.toLowerCase();let score=0;terms.forEach(t=>{const re=new RegExp(escapeReg(t.toLowerCase()),"g");const c=(lower.match(re)||[]).length;score+=c*(t.length>3?3:1)});return score}
-function search(){
-  const q=queryInput.value.trim();
-  if(!q){toast("Nhập từ khóa để tra cứu.");return}
-  const terms=q.split(/[\s,;]+/).filter(x=>x.length>1);
-  const source=chunks.filter(c=>filter==="all"||c.type===filter);
-  const results=source.map(c=>({...c,score:scoreChunk(c.text,terms)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,100);
-  lastResults=results.map(r=>({...r,query:q}));
-  renderResults(results,q,terms);
-  localStorage.setItem("pccc_last_query_v2",q);
-}
-function renderResults(results,q,terms){
-  $("resultTitle").textContent=`Kết quả: ${results.length}`;
-  if(!results.length){summaryBox.textContent=`Không tìm thấy nội dung liên quan đến “${q}”.`;resultList.innerHTML="";return}
-  const files=[...new Set(results.map(r=>r.fileName))];
-  summaryBox.innerHTML=`Tìm thấy <b>${results.length}</b> đoạn liên quan trong <b>${files.length}</b> tài liệu.`;
-  resultList.innerHTML=results.map((r,i)=>{
-    const rid=r.docId+"_"+r.idx;
-    return `<article class="result"><h4>${icon(r.type)} ${esc(r.fileName)}</h4><div class="meta">${r.type.toUpperCase()} • đoạn ${r.idx+1} • điểm ${r.score}</div><div class="snippet">${highlight(snippet(r.text,terms),terms)}</div><div class="resultActions"><button class="copyBtn" data-i="${i}">Copy đoạn</button><button class="pinBtn ${pinned.has(rid)?"active":""}" data-i="${i}" data-rid="${rid}">📌 ${pinned.has(rid)?"Đã ghim":"Ghim"}</button></div></article>`;
-  }).join("");
-  document.querySelectorAll(".copyBtn").forEach(b=>b.onclick=()=>copyResult(+b.dataset.i));
-  document.querySelectorAll(".pinBtn").forEach(b=>b.onclick=()=>togglePin(b.dataset.rid));
-}
+function getQueryTerms(q){return String(q||"").toLowerCase().split(/[\s,;:"'“”‘’()\[\]{}.!?\/\\\-]+/).map(x=>x.trim()).filter(x=>x.length>1)}
+function scoreChunk(text,terms){const lower=String(text||"").toLowerCase();const unique=new Set();let score=0;terms.forEach(t=>{const matches=lower.match(new RegExp(escapeReg(t),"g"))||[];if(matches.length){unique.add(t);score+=matches.length*(t.length>3?3:1)}});if(terms.length>=2&&unique.size<2)return 0;return score+unique.size*5}
+
+function search(){const q=queryInput.value.trim();if(!q){toast("Nhập từ khóa để tra cứu.");return}const terms=getQueryTerms(q);const source=chunks.filter(c=>filter==="all"||c.type===filter);const results=source.map(c=>({...c,score:scoreChunk(c.text,terms),terms,query:q})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score).slice(0,100);lastResults=results;renderResults(results,q,terms);localStorage.setItem("pccc_last_query_v3",q)}
+function renderResults(results,q,terms){$("resultTitle").textContent=`Kết quả: ${results.length}`;if(!results.length){summaryBox.innerHTML=`Không tìm thấy đoạn nào khớp tối thiểu <b>2 từ</b> trong cụm “${esc(q)}”.`;resultList.innerHTML="";return}const files=[...new Set(results.map(r=>r.fileName))];summaryBox.innerHTML=`Tìm thấy <b>${results.length}</b> đoạn liên quan trong <b>${files.length}</b> tài liệu. Nếu cụm tìm kiếm có từ 2 từ trở lên, kết quả phải khớp tối thiểu <b>2 từ</b>.`;resultList.innerHTML=results.map((r,i)=>{const rid=r.docId+"_"+r.idx;return `<article class="result"><h4>${icon(r.type)} ${esc(r.fileName)}</h4><div class="meta">${r.type.toUpperCase()} • đoạn ${r.idx+1} • điểm ${r.score}</div><div class="snippet">${highlight(snippet(r.text,terms),terms)}</div><div class="resultActions"><button class="copyBtn" data-i="${i}">Copy đoạn</button><button class="pinBtn ${pinned.has(rid)?"active":""}" data-rid="${rid}">📌 ${pinned.has(rid)?"Đã ghim":"Ghim"}</button><button class="openBtnResult" data-i="${i}">📂 Mở file</button></div></article>`}).join("");document.querySelectorAll(".copyBtn").forEach(b=>b.onclick=()=>copyResult(+b.dataset.i));document.querySelectorAll(".pinBtn").forEach(b=>b.onclick=()=>togglePin(b.dataset.rid));document.querySelectorAll(".openBtnResult").forEach(b=>b.onclick=()=>openFileAtResult(+b.dataset.i))}
 function snippet(text,terms){const lower=text.toLowerCase();let pos=0;for(const t of terms){const p=lower.indexOf(t.toLowerCase());if(p>=0){pos=p;break}}const start=Math.max(0,pos-180),end=Math.min(text.length,pos+520);return(start>0?"... ":"")+text.slice(start,end)+(end<text.length?" ...":"")}
 function highlight(text,terms){let out=esc(text);terms.filter(t=>t.length>1).forEach(t=>{out=out.replace(new RegExp(`(${escapeReg(esc(t))})`,"gi"),"<mark>$1</mark>")});return out}
 function copyResult(i){const r=lastResults[i];if(r){navigator.clipboard.writeText(`${r.fileName}\n\n${r.text}`);toast("Đã copy đoạn trích.")}}
-function togglePin(id){if(pinned.has(id))pinned.delete(id);else pinned.add(id);localStorage.setItem("pccc_pinned_v2",JSON.stringify([...pinned]));if(queryInput.value.trim())search()}
-function showPinned(){const rs=chunks.filter(c=>pinned.has(c.docId+"_"+c.idx)).map(c=>({...c,score:0}));lastResults=rs;$("resultTitle").textContent="Kết quả đã ghim";summaryBox.innerHTML=`Có <b>${rs.length}</b> đoạn đã ghim.`;resultList.innerHTML=rs.map((r,i)=>`<article class="result"><h4>${icon(r.type)} ${esc(r.fileName)}</h4><div class="meta">${r.type.toUpperCase()} • đoạn ${r.idx+1}</div><div class="snippet">${esc(snippet(r.text,[""]))}</div><div class="resultActions"><button class="copyBtn" data-i="${i}">Copy đoạn</button></div></article>`).join("");document.querySelectorAll(".copyBtn").forEach(b=>b.onclick=()=>copyResult(+b.dataset.i))}
+function togglePin(id){if(pinned.has(id))pinned.delete(id);else pinned.add(id);localStorage.setItem("pccc_pinned_v3",JSON.stringify([...pinned]));if(queryInput.value.trim())search()}
+function showPinned(){const rs=chunks.filter(c=>pinned.has(c.docId+"_"+c.idx)).map(c=>({...c,score:0,terms:getQueryTerms(queryInput.value),query:queryInput.value}));lastResults=rs;$("resultTitle").textContent="Kết quả đã ghim";summaryBox.innerHTML=`Có <b>${rs.length}</b> đoạn đã ghim.`;renderResults(rs,queryInput.value||"đã ghim",getQueryTerms(queryInput.value))}
+function openFileAtResult(i){const r=lastResults[i];if(!r){toast("Không tìm thấy kết quả.");return}const d=docs.find(x=>x.id===r.docId);if(!d){toast("Không tìm thấy file trong thư viện.");return}const terms=r.terms||getQueryTerms(queryInput.value);const all=splitChunks(d.text,d.id,d.name,d.type);let target=all.findIndex(c=>c.idx===r.idx&&c.text===r.text);if(target<0)target=Math.max(0,all.findIndex(c=>c.idx===r.idx));const before=all.slice(Math.max(0,target-2),target).map(c=>c.text).join("\n\n---\n\n");const cur=all[target]?.text||r.text;const after=all.slice(target+1,target+3).map(c=>c.text).join("\n\n---\n\n");$("viewerTitle").textContent=`${icon(d.type)} ${d.name}`;$("viewerMeta").textContent=`${d.type.toUpperCase()} • đoạn ${r.idx+1} • nội dung tìm kiếm được highlight màu vàng`;$("viewerContent").innerHTML=`<div class="viewerJump"><b>Cụm tìm kiếm:</b> ${esc(queryInput.value||r.query||"")}</div>${before?esc(before)+"\n\n---\n\n":""}${highlight(cur,terms)}${after?"\n\n---\n\n"+esc(after):""}`;$("viewer").classList.add("open");setTimeout(()=>{const m=$("viewerContent").querySelector("mark");if(m)m.scrollIntoView({behavior:"smooth",block:"center"})},120)}
 function exportResults(){if(!lastResults.length){toast("Chưa có kết quả để export.");return}const text=lastResults.map((r,i)=>`${i+1}. ${r.fileName} | ${r.type.toUpperCase()} | đoạn ${r.idx+1}\n${r.text}\n`).join("\n---\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:"text/plain;charset=utf-8"}));a.download="ket-qua-tra-cuu-pccc.txt";a.click()}
 
-$("pickFileBtn").onclick=()=>fileInput.click();$("pickFileBtn2").onclick=()=>fileInput.click();
-fileInput.onchange=e=>addFiles(e.target.files);
-dropZone.addEventListener("dragover",e=>{e.preventDefault();dropZone.classList.add("drag")});
-dropZone.addEventListener("dragleave",()=>dropZone.classList.remove("drag"));
-dropZone.addEventListener("drop",e=>{e.preventDefault();dropZone.classList.remove("drag");addFiles(e.dataTransfer.files)});
+$("pickFileBtn").onclick=()=>fileInput.click();$("pickFileBtn2").onclick=()=>fileInput.click();fileInput.onchange=e=>addFiles(e.target.files);
+dropZone.addEventListener("dragover",e=>{e.preventDefault();dropZone.classList.add("drag")});dropZone.addEventListener("dragleave",()=>dropZone.classList.remove("drag"));dropZone.addEventListener("drop",e=>{e.preventDefault();dropZone.classList.remove("drag");addFiles(e.dataTransfer.files)});
 $("searchBtn").onclick=search;queryInput.addEventListener("keydown",e=>{if(e.key==="Enter")search()});
 document.querySelectorAll(".chip[data-filter]").forEach(btn=>btn.onclick=()=>{filter=btn.dataset.filter;document.querySelectorAll(".chip[data-filter]").forEach(b=>b.classList.remove("active"));btn.classList.add("active");if(queryInput.value.trim())search()});
 document.querySelectorAll(".quickKeys button").forEach(b=>b.onclick=()=>{queryInput.value=b.textContent;search()});
 $("exportBtn").onclick=exportResults;$("clearSearchBtn").onclick=()=>{queryInput.value="";resultList.innerHTML="";summaryBox.textContent="Đã xóa kết quả tìm kiếm.";lastResults=[]};$("pinnedBtn").onclick=showPinned;
 $("clearAllBtn").onclick=async()=>{if(confirm("Xóa toàn bộ thư viện tài liệu?")){await clearDocs();await refresh();toast("Đã xóa thư viện.")}};
 $("libraryBtn").onclick=()=>$("drawer").classList.add("open");$("closeDrawerBtn").onclick=()=>$("drawer").classList.remove("open");$("drawer").onclick=e=>{if(e.target.id==="drawer")e.target.classList.remove("open")};
-(async()=>{db=await openDB();await refresh();const last=localStorage.getItem("pccc_last_query_v2");if(last)queryInput.value=last;updateLibStatus()})();
+$("closeViewerBtn").onclick=()=>$("viewer").classList.remove("open");$("viewer").onclick=e=>{if(e.target.id==="viewer")e.target.classList.remove("open")};
+(async()=>{db=await openDB();await refresh();const last=localStorage.getItem("pccc_last_query_v3");if(last)queryInput.value=last;updateLibStatus()})();
