@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <title>PCCC Legal Search</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css?v=1" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <div>
+        <h1>🔥 PCCC Legal Search</h1>
+        <p>Tra cứu nội dung trong PDF / Word / TXT đã upload</p>
+      </div>
+      <button id="libraryBtn" class="ghost">📚 Thư viện</button>
+    </header>
+
+    <section class="hero">
+      <div class="uploadBox" id="dropZone">
+        <div class="uploadIcon">📄</div>
+        <h2>Upload tài liệu pháp luật PCCC</h2>
+        <p>Hỗ trợ PDF, DOCX, TXT. Có thể chọn nhiều file cùng lúc.</p>
+        <label class="primary">
+          + Chọn tài liệu
+          <input id="fileInput" type="file" hidden multiple accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" />
+        </label>
+        <small>Kéo thả file vào khu vực này nếu dùng máy tính.</small>
+      </div>
+
+      <div class="stats">
+        <div><b id="docCount">0</b><span>Tài liệu</span></div>
+        <div><b id="chunkCount">0</b><span>Đoạn chỉ mục</span></div>
+        <div><b id="storageSize">0 MB</b><span>Dung lượng</span></div>
+      </div>
+    </section>
+
+    <section class="searchPanel">
+      <div class="searchRow">
+        <input id="queryInput" placeholder="Nhập từ khóa: QCVN 06, thẩm duyệt, lối thoát nạn, bình chữa cháy..." />
+        <button id="searchBtn" class="primary">Tra cứu</button>
+      </div>
+
+      <div class="filters">
+        <button class="chip active" data-filter="all">Tất cả</button>
+        <button class="chip" data-filter="pdf">PDF</button>
+        <button class="chip" data-filter="docx">Word</button>
+        <button class="chip" data-filter="txt">TXT</button>
+        <button id="exportBtn" class="chip">Export kết quả</button>
+        <button id="clearSearchBtn" class="chip">Xóa tìm kiếm</button>
+      </div>
+
+      <div class="quickKeys">
+        <button>thẩm duyệt PCCC</button>
+        <button>nghiệm thu PCCC</button>
+        <button>lối thoát nạn</button>
+        <button>bình chữa cháy</button>
+        <button>báo cháy tự động</button>
+        <button>QCVN 06</button>
+        <button>Nghị định 136</button>
+        <button>xử phạt</button>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <aside class="docs">
+        <div class="sectionHead">
+          <h3>Tài liệu đã lưu</h3>
+          <button id="clearAllBtn" class="dangerSmall">Xóa</button>
+        </div>
+        <div id="docList" class="docList"></div>
+      </aside>
+
+      <section class="results">
+        <div class="sectionHead">
+          <h3 id="resultTitle">Kết quả tra cứu</h3>
+          <button id="pinnedBtn" class="ghostSmall">📌 Ghim</button>
+        </div>
+        <div id="summaryBox" class="summaryBox">
+          Upload tài liệu rồi nhập từ khóa để tra cứu nội dung liên quan.
+        </div>
+        <div id="resultList" class="resultList"></div>
+      </section>
+    </section>
+
+    <div class="legalNote">
+      ⚠️ Kết quả chỉ hỗ trợ tra cứu nội bộ. Cần đối chiếu văn bản gốc trước khi áp dụng pháp lý hoặc kỹ thuật.
+    </div>
+  </main>
+
+  <aside id="drawer" class="drawer">
+    <div class="drawerPanel">
+      <div class="sectionHead">
+        <h3>📚 Quản lý thư viện</h3>
+        <button id="closeDrawerBtn" class="ghostSmall">×</button>
+      </div>
+      <p class="muted">Tài liệu đã upload được lưu trong trình duyệt bằng IndexedDB. Lần sau mở lại vẫn còn nếu trình duyệt không xóa dữ liệu.</p>
+      <div id="drawerDocs" class="docList"></div>
+    </div>
+  </aside>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>
