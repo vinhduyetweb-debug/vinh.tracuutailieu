@@ -4,27 +4,47 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#07111f" />
-  <title>PCCC Legal Search V3</title>
+  <meta name="description" content="PWA tra cứu tài liệu pháp luật PCCC, lập hồ sơ, checklist và xuất biên bản tra cứu nội bộ." />
+  <title>PCCC Legal Research OS V4</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=3" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css?v=4.0.0" />
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script defer src="https://unpkg.com/mammoth@1.6.0/mammoth.browser.min.js"></script>
 </head>
 <body>
-  <main class="app">
+  <main id="appRoot" class="app">
     <header class="top">
       <div>
-        <h1>🔥 PCCC Legal Search</h1>
-        <p>Tra cứu PDF / Word / TXT đã upload</p>
+        <div class="eyebrow">PWA tĩnh • IndexedDB • Không backend</div>
+        <h1>🔥 PCCC Legal Research OS</h1>
+        <p>Tra cứu văn bản PCCC, gom căn cứ, lập checklist và xuất hồ sơ nội bộ.</p>
       </div>
-      <button id="libraryBtn" class="ghost" type="button">📚 Thư viện</button>
+      <div class="topActions">
+        <span id="networkStatus" class="statusPill">Đang kiểm tra mạng</span>
+        <button id="libraryBtn" class="ghost" type="button">📚 Thư viện</button>
+      </div>
     </header>
 
-    <section class="hero">
-      <div class="uploadBox" id="dropZone">
+    <section class="commandCenter">
+      <article class="decisionCard">
+        <div class="stateLine">
+          <span id="appState" class="stateBadge">EMPTY</span>
+          <span id="stateExplain">Chưa có tài liệu để tra cứu.</span>
+        </div>
+        <h2 id="mainConclusion">Upload tài liệu PCCC để bắt đầu tra cứu.</h2>
+        <p id="mainSlogan">Tra cứu nhanh. Đối chiếu chậm. Kết luận phải có căn cứ.</p>
+        <div class="primaryActions">
+          <button id="focusUploadBtn" class="primary" type="button">+ Nạp tài liệu</button>
+          <button id="focusSearchBtn" class="secondary" type="button">Tra cứu nhanh</button>
+          <button id="exportCaseBtn" class="secondary" type="button">Xuất hồ sơ</button>
+        </div>
+      </article>
+
+      <article class="uploadBox" id="dropZone">
         <div class="uploadIcon">📄</div>
-        <h2>Upload tài liệu pháp luật PCCC</h2>
-        <p>Hỗ trợ PDF, DOCX, TXT. Có thể chọn nhiều file cùng lúc.</p>
+        <h2>Upload PDF / DOCX / TXT</h2>
+        <p>Kéo thả hoặc chọn nhiều file. Tài liệu lưu cục bộ trong trình duyệt bằng IndexedDB.</p>
         <div class="uploadActions">
           <button id="pickFileBtn" class="primary" type="button">+ Chọn tài liệu</button>
           <button id="pickFileBtn2" class="secondary" type="button">📁 Chọn lại</button>
@@ -32,18 +52,44 @@
         <input id="fileInput" class="realInput" type="file" multiple
           accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" />
         <small id="libStatus">Đang kiểm tra thư viện PDF/DOCX...</small>
-      </div>
+      </article>
 
-      <div class="stats">
+      <aside class="stats" aria-label="Thống kê thư viện">
         <div><b id="docCount">0</b><span>Tài liệu</span></div>
         <div><b id="chunkCount">0</b><span>Đoạn chỉ mục</span></div>
-        <div><b id="storageSize">0 MB</b><span>Dung lượng</span></div>
+        <div><b id="caseCount">0</b><span>Hồ sơ</span></div>
+        <div><b id="checkCount">0</b><span>Checklist</span></div>
+      </aside>
+    </section>
+
+    <section class="casePanel">
+      <div class="sectionHead compactHead">
+        <div>
+          <h3>📁 Hồ sơ tra cứu</h3>
+          <p>Gom đoạn căn cứ và checklist cho từng cơ sở/vụ việc.</p>
+        </div>
+        <button id="toggleCaseTools" class="ghostSmall" type="button">Công cụ</button>
       </div>
+      <div class="caseGrid">
+        <input id="caseNameInput" placeholder="Tên hồ sơ: Cơ sở A - kiểm tra PCCC..." />
+        <button id="createCaseBtn" class="primary" type="button">Tạo hồ sơ</button>
+        <select id="caseSelect" aria-label="Chọn hồ sơ"></select>
+      </div>
+      <div id="activeCaseBox" class="summaryBox smallSummary">Chưa có hồ sơ đang mở.</div>
+      <details id="caseTools" class="fold">
+        <summary>Backup / Restore / Reset</summary>
+        <div class="toolRow">
+          <button id="exportBackupBtn" class="chip" type="button">Export JSON toàn bộ</button>
+          <button id="importBackupBtn" class="chip" type="button">Import JSON</button>
+          <button id="resetAllBtn" class="dangerSmall" type="button">Reset dữ liệu V4</button>
+          <input id="importBackupInput" class="realInput" type="file" accept="application/json,.json" />
+        </div>
+      </details>
     </section>
 
     <section class="searchPanel">
       <div class="searchRow">
-        <input id="queryInput" placeholder="Nhập cụm từ: thẩm duyệt PCCC, lối thoát nạn, bình chữa cháy..." />
+        <input id="queryInput" placeholder="Nhập câu hỏi/từ khóa: nghiệm thu PCCC, lối thoát nạn, bình chữa cháy..." />
         <button id="searchBtn" class="primary" type="button">Tra cứu</button>
       </div>
 
@@ -52,20 +98,20 @@
         <button class="chip" type="button" data-filter="pdf">PDF</button>
         <button class="chip" type="button" data-filter="docx">Word</button>
         <button class="chip" type="button" data-filter="txt">TXT</button>
-        <button id="exportBtn" class="chip" type="button">Export kết quả</button>
+        <button id="pinnedBtn" class="chip" type="button">📌 Đã ghim</button>
+        <button id="exportBtn" class="chip" type="button">Export TXT</button>
         <button id="clearSearchBtn" class="chip" type="button">Xóa tìm kiếm</button>
       </div>
 
-      <div class="quickKeys">
-        <button type="button">thẩm duyệt PCCC</button>
-        <button type="button">nghiệm thu PCCC</button>
-        <button type="button">lối thoát nạn</button>
-        <button type="button">bình chữa cháy</button>
-        <button type="button">báo cháy tự động</button>
-        <button type="button">QCVN 06</button>
-        <button type="button">Nghị định 136</button>
-        <button type="button">xử phạt</button>
-      </div>
+      <details class="fold" open>
+        <summary>Tra theo tình huống thực tế</summary>
+        <div id="scenarioList" class="scenarioGrid"></div>
+      </details>
+
+      <details class="fold">
+        <summary>Bộ chủ đề PCCC</summary>
+        <div id="topicList" class="quickKeys"></div>
+      </details>
     </section>
 
     <section class="workspace">
@@ -79,33 +125,44 @@
 
       <section class="results">
         <div class="sectionHead">
-          <h3 id="resultTitle">Kết quả tra cứu</h3>
-          <button id="pinnedBtn" class="ghostSmall" type="button">📌 Ghim</button>
+          <div>
+            <h3 id="resultTitle">Kết quả tra cứu</h3>
+            <p id="resultSubtitle">Mỗi kết quả được chuyển thành phiếu hiểu nhanh: chủ đề, mức liên quan, vị trí, hành động.</p>
+          </div>
         </div>
         <div id="summaryBox" class="summaryBox">
-          Upload tài liệu rồi nhập cụm từ để tra cứu. Nếu cụm có từ 2 từ trở lên, app chỉ hiện kết quả khớp tối thiểu 2 từ.
+          Upload tài liệu rồi nhập cụm từ/câu hỏi để tra cứu. App có mở rộng từ đồng nghĩa và tìm không dấu tiếng Việt.
         </div>
         <div id="resultList" class="resultList"></div>
       </section>
+
+      <aside class="checklistPanel">
+        <div class="sectionHead">
+          <h3>✅ Checklist hồ sơ</h3>
+          <button id="clearChecklistBtn" class="ghostSmall" type="button">Dọn</button>
+        </div>
+        <div id="checklistList" class="checklistList"></div>
+      </aside>
     </section>
 
-    <div class="legalNote">
-      ⚠️ Kết quả chỉ hỗ trợ tra cứu nội bộ. Cần đối chiếu văn bản gốc trước khi áp dụng pháp lý hoặc kỹ thuật.
-    </div>
+    <details class="legalNote" open>
+      <summary>⚠️ Nguyên tắc an toàn pháp lý</summary>
+      <p>Kết quả chỉ hỗ trợ tra cứu nội bộ. Không dùng app để kết luận pháp lý/kỹ thuật cuối cùng nếu chưa đối chiếu văn bản gốc, tình trạng hiệu lực và hồ sơ thực tế.</p>
+    </details>
   </main>
 
-  <aside id="drawer" class="drawer">
+  <aside id="drawer" class="drawer" aria-hidden="true">
     <div class="drawerPanel">
       <div class="sectionHead">
         <h3>📚 Quản lý thư viện</h3>
         <button id="closeDrawerBtn" class="ghostSmall" type="button">×</button>
       </div>
-      <p class="muted">Tài liệu đã upload được lưu trong trình duyệt bằng IndexedDB.</p>
+      <p class="muted">Tài liệu đã upload được lưu trong trình duyệt bằng IndexedDB. Export JSON để sao lưu khi đổi máy/trình duyệt.</p>
       <div id="drawerDocs" class="docList"></div>
     </div>
   </aside>
 
-  <aside id="viewer" class="viewer">
+  <aside id="viewer" class="viewer" aria-hidden="true">
     <div class="viewerPanel">
       <div class="viewerHead">
         <div>
@@ -118,6 +175,7 @@
     </div>
   </aside>
 
-  <script src="app.js?v=3"></script>
+  <script src="taxonomy.js?v=4.0.0"></script>
+  <script src="app.js?v=4.0.0"></script>
 </body>
 </html>

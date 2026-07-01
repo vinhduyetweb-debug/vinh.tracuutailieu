@@ -1,0 +1,11 @@
+{
+  "name": "pccc-legal-research-os",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Static PWA for PCCC legal document search, case files, checklist and backup.",
+  "scripts": {
+    "check": "node --check app.js && node --check taxonomy.js && node --check service-worker.js && node tools/validate-app.js",
+    "validate": "node tools/validate-app.js"
+  },
+  "devDependencies": {}
+}
